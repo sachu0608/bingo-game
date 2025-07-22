@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bingo Game</title>
+  <style>
+    /* 🎨 Bingo Game Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #3f51b5, #2196f3);
+      color: #fff;
+      text-align: center;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 2em;
+      margin-bottom: 15px;
+    }
+
+    button {
+      background: linear-gradient(90deg, #ffca28, #ffc107);
+      color: #333;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1.1em;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      margin-bottom: 20px;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 10px rgba(0,0,0,0.4);
+    }
+
+    #bingo-container {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 20px;
+    }
+
+    #bingo-card {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      grid-gap: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+
+    .cell {
+      background: rgba(255,255,255,0.2);
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 1.2em;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 60px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.3s, transform 0.2s;
+    }
+
+    .cell:hover {
+      background: rgba(255,255,255,0.35);
+      transform: scale(1.05);
+    }
+
+    .cell.marked {
+      background: #4caf50;
+      color: #fff;
+      transform: scale(1);
+    }
+
+    #called-numbers {
+      margin-top: 10px;
+      font-size: 1em;
+      max-width: 90%;
+      word-wrap: break-word;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-size: 2em;
+      color: #ffeb3b;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    }
+
+    #strike {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    .strike-line {
+      position: absolute;
+      background: rgba(255,255,0,0.8);
+      height: 4px;
+      width: 100%;
+      border-radius: 4px;
+      transform-origin: center;
+    }
+
+    @media (max-width: 400px) {
+      #bingo-card {
+        grid-template-columns: repeat(5, 45px);
+        grid-gap: 5px;
+      }
+      .cell {
+        height: 45px;
+        font-size: 1em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Bingo Game (1–25)</h1>
+  <button onclick="generateCard()">Generate New Card</button>
+  <div id="bingo-container">
+    <div id="bingo-card"></div>
+    <div id="strike"></div>
+  </div>
+  <div id="called-numbers">Called Numbers: </div>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script>
+    let calledNumbers = [];
+    let callTimeout;
+    let numbersToCall = [];
+    let alreadyStruck = [];
+
+    function generateCard() {
+      clearTimeout(callTimeout);
+      calledNumbers = [];
+      numbersToCall = shuffle([...Array(25).keys()].map(x => x+1));
+      alreadyStruck = [];
+
+      document.getElementById('called-numbers').innerText = 'Called Numbers: ';
+      document.getElementById('status').innerText = '';
+      document.getElementById('strike').innerHTML = '';
+
+      const numbers = shuffle([...Array(25).keys()].map(x => x+1));
+      const card = document.getElementById('bingo-card');
+      card.innerHTML = '';
+
+      for (let i=0; i<25; i++) {
+        const num = numbers[i];
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (i === 12) {
+          cell.innerText = 'FREE';
+          cell.classList.add('marked');
+        } else {
+          cell.innerText = num;
+        }
+        cell.onclick = () => {
+          cell.classList.toggle('marked');
+          checkBingo();
+        };
+        card.appendChild(cell);
+      }
+
+      startCalling();
+    }
+
+    function startCalling() {
+      function callNext() {
+        if (numbersToCall.length === 0) return;
+        const num = numbersToCall.pop();
+        calledNumbers.push(num);
+        document.getElementById('called-numbers').innerText =
+          'Called Numbers: ' + calledNumbers.join(', ');
+        callTimeout = setTimeout(callNext, 3000);
+      }
+      callNext();
+    }
+
+    function checkBingo() {
+      const cells = document.querySelectorAll('.cell');
+      const marked = [...cells].map(cell => cell.classList.contains('marked'));
+
+      // Rows
+      for (let r=0; r<5; r++) {
+        const key = 'row'+r;
+        if (!alreadyStruck.includes(key) && marked.slice(r*5, r*5+5).every(Boolean)) {
+          addStrike('row', r);
+          alreadyStruck.push(key);
+        }
+      }
+
+      // Columns
+      for (let c=0; c<5; c++) {
+        const key = 'col'+c;
+        if (!alreadyStruck.includes(key) && [0,1,2,3,4].map(i=>marked[i*5+c]).every(Boolean)) {
+          addStrike('col', c);
+          alreadyStruck.push(key);
+        }
+      }
+
+      // Diagonals
+      if (!alreadyStruck.includes('diag-lr') && [0,6,12,18,24].map(i=>marked[i]).every(Boolean)) {
+        addStrike('diag','lr');
+        alreadyStruck.push('diag-lr');
+      }
+      if (!alreadyStruck.includes('diag-rl') && [4,8,12,16,20].map(i=>marked[i]).every(Boolean)) {
+        addStrike('diag','rl');
+        alreadyStruck.push('diag-rl');
+      }
+
+      // All cells marked: Bingo!
+      if (marked.every(Boolean)) {
+        showBingo();
+      }
+    }
+
+    function addStrike(type, pos) {
+      const strike = document.getElementById('strike');
+      const line = document.createElement('div');
+      line.className = 'strike-line';
+      if (type==='row') {
+        line.style.top = `${pos*20+10}%`;
+      } else if (type==='col') {
+        line.style.left='50%'; line.style.height='100%'; line.style.width='4px';
+        line.style.top='0';
+        line.style.transform=`translateX(${(pos-2)*60}px)`;
+      } else if (type==='diag') {
+        line.style.width='140%'; line.style.top='50%'; line.style.left='-20%';
+        line.style.transform= (pos==='lr') ? 'rotate(45deg)' : 'rotate(-45deg)';
+      }
+      strike.appendChild(line);
+    }
+
+    function showBingo() {
+      if (document.getElementById('status').innerText) return;
+      document.getElementById('status').innerText = '🎉 BINGO! 🎉';
+      clearTimeout(callTimeout);
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    }
+
+    function shuffle(arr) {
+      for (let i=arr.length-1;i>0;i--) {
+        const j=Math.floor(Math.random()*(i+1));
+        [arr[i],arr[j]]=[arr[j],arr[i]];
+      }
+      return arr;
+    }
+  </script>
+</body>
+</html>
